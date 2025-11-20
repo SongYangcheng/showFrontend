@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Stream - Final Output</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            cursor: none;
+            /* 隐藏默认光标，增加沉浸感 */
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* 交互提示层 */
+        .ui-layer {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            color: rgba(255, 255, 255, 0.5);
+            z-index: 10;
+            pointer-events: none;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 400;
+            margin: 0;
+            letter-spacing: 4px;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .status {
+            font-size: 0.8rem;
+            margin-top: 5px;
+        }
+
+        /* 自定义光标跟随 */
+        #cursor-ring {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 20;
+            mix-blend-mode: difference;
+            transition: width 0.2s, height 0.2s;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="cursor-ring"></div>
+
+    <div class="ui-layer">
+        <h1>QUANTUM_STREAM</h1>
+        <div class="status">RENDER: ADDITIVE // <span id="fps">60</span> FPS</div>
+        <div class="status" style="opacity: 0.6; margin-top: 10px;">[CLICK] TO REMIX NOISE</div>
+    </div>
+
+    <canvas id="canvas1"></canvas>
+
+    <script>
+        /**
+         * Quantum Stream - High Performance Flow Field
+         * 核心技术：Canvas API, Perlin-like Noise (Simulated), Additive Blending
+         */
+
+        const canvas = document.getElementById('canvas1');
+        const ctx = canvas.getContext('2d');
+        const fpsDisplay = document.getElementById('fps');
+        const cursorRing = document.getElementById('cursor-ring');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // 配置参数
+        let config = {
+            particleCount: window.innerWidth < 768 ? 1500 : 4000, // 移动端减少粒子
+            trailOpacity: 0.04,   // 拖尾长短 (越小越长)
+            speedBase: 1.5,       // 基础速度
+            noiseScale: 0.005,    // 噪点缩放
+            colorSpeed: 0.5,      // 颜色循环速度
+            forceFieldRadius: 200 // 鼠标影响半径
+        };
+
+        let particlesArray = [];
+        let hue = 0;
+        let lastTime = 0;
+        let noiseSeed = Math.random() * 100; // 用于切换流场形态
+
+        // 鼠标/触摸状态
+        let mouse = {
+            x: -1000,
+            y: -1000,
+            active: false
+        }
+
+        // --- 事件监听 ---
+
+        window.addEventListener('mousemove', e => {
+            mouse.x = e.x;
+            mouse.y = e.y;
+            mouse.active = true;
+            // 自定义光标移动
+            cursorRing.style.left = e.x + 'px';
+            cursorRing.style.top = e.y + 'px';
+        });
+
+        // 点击切换噪点种子，改变流场形状
+        window.addEventListener('mousedown', () => {
+            noiseSeed = Math.random() * 1000;
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            particlesArray.forEach(p => p.reset());
+
+            // 光标点击反馈
+            cursorRing.style.width = '30px';
+            cursorRing.style.height = '30px';
+            setTimeout(() => {
+                cursorRing.style.width = '40px';
+                cursorRing.style.height = '40px';
+            }, 200);
+        });
+
+        // 触摸支持
+        window.addEventListener('touchstart', e => {
+            mouse.x = e.touches[0].clientX;
+            mouse.y = e.touches[0].clientY;
+            mouse.active = true;
+            noiseSeed = Math.random() * 1000; // 触摸也切换
+        });
+
+        window.addEventListener('touchend', () => {
+            mouse.active = false;
+            mouse.x = -1000;
+        });
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            init();
+        });
+
+        // --- 粒子类 ---
+
+        class Particle {
+            constructor() {
+                this.reset();
+                // 初始位置随机分布
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+            }
+
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.history = [];
+                // 寿命随机，防止同时重生造成的闪烁
+                this.life = Math.random() * 100 + 50;
+                this.age = 0;
+                // 每个粒子有细微的速度差异
+                this.speedModifier = Math.random() * 0.5 + 0.8;
+                // 颜色偏移
+                this.hueOffset = Math.random() * 60;
+            }
+
+            update() {
+                this.age++;
+
+                // 1. 计算流场角度 (伪噪声算法)
+                // 使用三角函数叠加模拟 Perlin Noise 的流动感
+                const xOff = this.x * config.noiseScale;
+                const yOff = this.y * config.noiseScale;
+                // 核心公式：改变这里的 sin/cos 组合可以彻底改变流场形状
+                let angle = (Math.cos(xOff + noiseSeed) + Math.sin(yOff + noiseSeed)) * Math.PI * 2;
+
+                // 2. 鼠标排斥/吸引力场
+                if (mouse.active) {
+                    let dx = mouse.x - this.x;
+                    let dy = mouse.y - this.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < config.forceFieldRadius) {
+                        const force = (config.forceFieldRadius - dist) / config.forceFieldRadius;
+                        // 计算鼠标方向
+                        const mouseAngle = Math.atan2(dy, dx);
+                        // 混合流场角度和鼠标角度 (鼠标产生湍流)
+                        angle = angle * (1 - force) + (mouseAngle + Math.PI) * force;
+                        // 靠近鼠标时加速
+                        this.x += Math.cos(angle) * 2;
+                        this.y += Math.sin(angle) * 2;
+                    }
+                }
+
+                // 3. 更新位置
+                this.x += Math.cos(angle) * config.speedBase * this.speedModifier;
+                this.y += Math.sin(angle) * config.speedBase * this.speedModifier;
+
+                // 4. 边界与生命周期检查
+                if (this.age > this.life ||
+                    this.x < 0 || this.x > canvas.width ||
+                    this.y < 0 || this.y > canvas.height) {
+                    this.reset();
+                }
+            }
+
+            draw() {
+                // 绘制单个粒子
+                // 这里不使用 lineTo 绘制长尾巴，而是利用 update 频率高 + 背景半透明清除 产生的自然拖尾
+                // 这样性能更高，且效果更柔和
+                ctx.fillStyle = `hsla(${hue + this.hueOffset}, 80%, 60%, 0.8)`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // --- 主程序 ---
+
+        function init() {
+            particlesArray = [];
+            for (let i = 0; i < config.particleCount; i++) {
+                particlesArray.push(new Particle());
+            }
+        }
+
+        function animate(timeStamp) {
+            // 计算FPS
+            const deltaTime = timeStamp - lastTime;
+            lastTime = timeStamp;
+            if (timeStamp % 10 < 1) { // 降低FPS刷新频率
+                fpsDisplay.innerText = Math.round(1000 / deltaTime) || 60;
+            }
+
+            // 1. 绘制半透明背景 (产生拖尾的关键)
+            // 必须在 source-over 模式下
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = `rgba(0, 0, 0, ${config.trailOpacity})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. 切换到加性混合模式 (光效叠加)
+            // 颜色重叠处会变白，产生发光感
+            ctx.globalCompositeOperation = 'lighter';
+
+            // 3. 更新并绘制所有粒子
+            for (let i = 0; i < particlesArray.length; i++) {
+                particlesArray[i].update();
+                particlesArray[i].draw();
+            }
+
+            // 4. 循环颜色
+            hue += config.colorSpeed;
+
+            requestAnimationFrame(animate);
+        }
+
+        // 启动
+        init();
+        animate(0);
+
+    </script>
+</body>
+
+</html>

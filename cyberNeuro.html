@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber-Neuro Nexus Visualizer</title>
+    <style>
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-magenta: #ff0055;
+            --bg-color: #080808;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            /* 保持代码风格字体 */
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* ------------------------------------------------
+           核心视觉冲击区：故障文字 (Glitch Typography)
+           ------------------------------------------------ */
+        .overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            text-align: center;
+            pointer-events: none;
+            /* 确保鼠标能穿透文字操作 Canvas */
+            mix-blend-mode: exclusion;
+            /* 关键：让文字与粒子产生颜色反差反应 */
+            width: 100%;
+        }
+
+        h1 {
+            color: #fff;
+            font-size: 8vw;
+            /* 响应式大标题 */
+            font-weight: 900;
+            margin: 0;
+            letter-spacing: 0.5rem;
+            text-transform: uppercase;
+            position: relative;
+            line-height: 1;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        /* 故障动画层 - Cyan */
+        h1::before {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            color: var(--neon-cyan);
+            background: var(--bg-color);
+            overflow: hidden;
+            clip-path: inset(0 0 0 0);
+            animation: glitch-anim-1 3s infinite linear alternate-reverse;
+            opacity: 0.7;
+            mix-blend-mode: hard-light;
+        }
+
+        /* 故障动画层 - Magenta */
+        h1::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            color: var(--neon-magenta);
+            background: var(--bg-color);
+            overflow: hidden;
+            clip-path: inset(0 0 0 0);
+            animation: glitch-anim-2 2.5s infinite linear alternate;
+            opacity: 0.7;
+            mix-blend-mode: hard-light;
+        }
+
+        .sub-text {
+            color: var(--neon-cyan);
+            margin-top: 20px;
+            font-size: 1.2rem;
+            letter-spacing: 0.3rem;
+            opacity: 0;
+            animation: fadeInUp 1s ease-out forwards 1s;
+        }
+
+        /* ------------------------------------------------
+           动画关键帧定义
+           ------------------------------------------------ */
+        @keyframes glitch-anim-1 {
+            0% {
+                clip-path: inset(20% 0 80% 0);
+                transform: translate(-4px, 2px);
+            }
+
+            20% {
+                clip-path: inset(60% 0 10% 0);
+                transform: translate(4px, -2px);
+            }
+
+            40% {
+                clip-path: inset(40% 0 50% 0);
+                transform: translate(-4px, 4px);
+            }
+
+            60% {
+                clip-path: inset(80% 0 5% 0);
+                transform: translate(4px, -4px);
+            }
+
+            80% {
+                clip-path: inset(10% 0 60% 0);
+                transform: translate(-2px, 2px);
+            }
+
+            100% {
+                clip-path: inset(30% 0 40% 0);
+                transform: translate(2px, -2px);
+            }
+        }
+
+        @keyframes glitch-anim-2 {
+            0% {
+                clip-path: inset(10% 0 60% 0);
+                transform: translate(4px, -2px);
+            }
+
+            20% {
+                clip-path: inset(80% 0 5% 0);
+                transform: translate(-4px, 2px);
+            }
+
+            40% {
+                clip-path: inset(30% 0 20% 0);
+                transform: translate(4px, 4px);
+            }
+
+            60% {
+                clip-path: inset(15% 0 80% 0);
+                transform: translate(-4px, -4px);
+            }
+
+            80% {
+                clip-path: inset(55% 0 10% 0);
+                transform: translate(2px, 2px);
+            }
+
+            100% {
+                clip-path: inset(40% 0 30% 0);
+                transform: translate(-2px, -2px);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 移动端提示 */
+        .mobile-hint {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 12vw;
+            }
+
+            .mobile-hint {
+                display: block;
+                position: absolute;
+                bottom: 30px;
+                width: 100%;
+                text-align: center;
+                color: rgba(255, 255, 255, 0.3);
+                font-size: 0.8rem;
+                pointer-events: none;
+                z-index: 5;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="overlay">
+        <h1 data-text="NEXUS_CORE">NEXUS_CORE</h1>
+        <div class="sub-text">SYSTEM INITIALIZED // 交互式神经中枢</div>
+    </div>
+
+    <div class="mobile-hint">Touch & Drag screen</div>
+
+    <canvas id="neuroCanvas"></canvas>
+
+    <script>
+        /**
+         * 高性能粒子系统核心逻辑
+         * 使用 HTML5 Canvas 2D API
+         */
+        const canvas = document.getElementById('neuroCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 设置画布全屏
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let particlesArray;
+
+        // 交互点（鼠标/触摸）
+        let mouse = {
+            x: null,
+            y: null,
+            radius: (canvas.height / 80) * (canvas.width / 80) // 交互半径
+        }
+
+        // 监听鼠标移动
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = event.x;
+            mouse.y = event.y;
+        });
+
+        // 监听触摸移动（移动端适配）
+        window.addEventListener('touchmove', (event) => {
+            mouse.x = event.touches[0].clientX;
+            mouse.y = event.touches[0].clientY;
+        });
+
+        window.addEventListener('touchstart', (event) => {
+            mouse.x = event.touches[0].clientX;
+            mouse.y = event.touches[0].clientY;
+        });
+
+        window.addEventListener('touchend', () => {
+            mouse.x = null;
+            mouse.y = null;
+        });
+
+
+        // 粒子类定义
+        class Particle {
+            constructor(x, y, directionX, directionY, size, color) {
+                this.x = x;
+                this.y = y;
+                this.directionX = directionX;
+                this.directionY = directionY;
+                this.size = size;
+                this.color = color;
+                this.baseSize = size; // 记录原始大小用于恢复
+            }
+
+            // 绘制方法
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color;
+
+                // 增加辉光效果，提升"冲击力"
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+
+                ctx.fill();
+                ctx.shadowBlur = 0; // 重置以免影响性能过大
+            }
+
+            // 更新逻辑（物理引擎）
+            update() {
+                // 1. 边界反弹
+                if (this.x > canvas.width || this.x < 0) {
+                    this.directionX = -this.directionX;
+                }
+                if (this.y > canvas.height || this.y < 0) {
+                    this.directionY = -this.directionY;
+                }
+
+                // 2. 鼠标/手指 交互物理 (碰撞检测 + 排斥力)
+                let dx = mouse.x - this.x;
+                let dy = mouse.y - this.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < mouse.radius + this.size) {
+                    // 如果在鼠标交互范围内，粒子会被推开
+                    const forceDirectionX = dx / distance;
+                    const forceDirectionY = dy / distance;
+                    const force = (mouse.radius - distance) / mouse.radius;
+
+                    // 排斥力度
+                    const directionX = forceDirectionX * force * 5;
+                    const directionY = forceDirectionY * force * 5;
+
+                    if (mouse.x < this.x && this.x < canvas.width - this.size * 10) {
+                        this.x += 5;
+                    }
+                    if (mouse.x > this.x && this.x > this.size * 10) {
+                        this.x -= 5;
+                    }
+                    if (mouse.y < this.y && this.y < canvas.height - this.size * 10) {
+                        this.y += 5;
+                    }
+                    if (mouse.y > this.y && this.y > this.size * 10) {
+                        this.y -= 5;
+                    }
+
+                    // 靠近时稍微放大，增加互动反馈
+                    if (this.size < 8) this.size += 0.5;
+                } else {
+                    // 恢复原始大小
+                    if (this.size > this.baseSize) {
+                        this.size -= 0.1;
+                    }
+                }
+
+                // 3. 移动位置
+                this.x += this.directionX;
+                this.y += this.directionY;
+
+                this.draw();
+            }
+        }
+
+        // 初始化粒子群
+        function init() {
+            particlesArray = [];
+            // 粒子数量根据屏幕面积动态计算，保证不同设备上的密度一致
+            let numberOfParticles = (canvas.height * canvas.width) / 6000;
+
+            for (let i = 0; i < numberOfParticles; i++) {
+                let size = (Math.random() * 2) + 1;
+                let x = (Math.random() * ((innerWidth - size * 2) - (size * 2)) + size * 2);
+                let y = (Math.random() * ((innerHeight - size * 2) - (size * 2)) + size * 2);
+
+                // 速度矢量 (-1 到 1 之间)
+                let directionX = (Math.random() * 2) - 1;
+                let directionY = (Math.random() * 2) - 1;
+
+                // 赛博朋克配色方案
+                let colors = ['rgba(0, 243, 255, 0.8)', 'rgba(255, 0, 85, 0.8)', 'rgba(255, 255, 255, 0.6)'];
+                let color = colors[Math.floor(Math.random() * colors.length)];
+
+                particlesArray.push(new Particle(x, y, directionX, directionY, size, color));
+            }
+        }
+
+        // 绘制连线 (神经网络效果)
+        function connect() {
+            let opacityValue = 1;
+            for (let a = 0; a < particlesArray.length; a++) {
+                for (let b = a; b < particlesArray.length; b++) {
+                    let distance = ((particlesArray[a].x - particlesArray[b].x) * (particlesArray[a].x - particlesArray[b].x))
+                        + ((particlesArray[a].y - particlesArray[b].y) * (particlesArray[a].y - particlesArray[b].y));
+
+                    // 连接距离阈值
+                    if (distance < (canvas.width / 7) * (canvas.height / 7)) {
+                        // 距离越远线越透明
+                        opacityValue = 1 - (distance / 20000);
+
+                        ctx.lineWidth = 1;
+                        // 动态连线颜色 - 偏青色，营造科技冷感
+                        ctx.strokeStyle = 'rgba(0, 243, 255,' + opacityValue + ')';
+
+                        ctx.beginPath();
+                        ctx.moveTo(particlesArray[a].x, particlesArray[a].y);
+                        ctx.lineTo(particlesArray[b].x, particlesArray[b].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 清除画布 (可以改为 fillRect 带透明度来实现拖影效果)
+            ctx.clearRect(0, 0, innerWidth, innerHeight);
+
+            for (let i = 0; i < particlesArray.length; i++) {
+                particlesArray[i].update();
+            }
+            connect();
+        }
+
+        // 窗口大小改变时重置
+        window.addEventListener('resize', function () {
+            canvas.width = innerWidth;
+            canvas.height = innerHeight;
+            mouse.radius = ((canvas.height / 80) * (canvas.height / 80));
+            init();
+        });
+
+        // 鼠标移出屏幕时清除交互焦点
+        window.addEventListener('mouseout', function () {
+            mouse.x = undefined;
+            mouse.y = undefined;
+        });
+
+        // 启动
+        init();
+        animate();
+    </script>
+</body>
+
+</html>

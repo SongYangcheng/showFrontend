@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 交互式地球模型 - 中国版</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/topojson@3.0.2/dist/topojson.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            background: #0f172a;
+            /* 深色背景 */
+            overflow: hidden;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+        }
+
+        #globe-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: grab;
+        }
+
+        #globe-container:active {
+            cursor: grabbing;
+        }
+
+        /* 悬浮提示框 */
+        .tooltip {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.95);
+            color: #be123c;
+            /* 提示文字改为深红色 */
+            padding: 6px 12px;
+            border-radius: 4px;
+            pointer-events: none;
+            font-weight: 900;
+            font-size: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transition: opacity 0.1s;
+            z-index: 10;
+            transform: translate(-50%, -120%);
+            white-space: nowrap;
+            border: 1px solid #fda4af;
+        }
+
+        /* 国家路径样式 */
+        .country {
+            fill: #34d399;
+            stroke: #0f172a;
+            stroke-width: 0.5px;
+            transition: fill 0.2s;
+        }
+
+        .country:hover {
+            fill: #facc15;
+            cursor: pointer;
+        }
+
+        /* 聚焦状态 */
+        .focused {
+            fill: #ef4444 !important;
+        }
+
+        /* 特别强调中国颜色（可选，此处统一处理，但逻辑上已合并） */
+        /* .country[data-name="中国"] { fill: #10b981; } */
+
+        /* 海洋 */
+        .sphere {
+            fill: #1e3a8a;
+            stroke: #60a5fa;
+            stroke-width: 1.5px;
+        }
+
+        /* 网格线 */
+        .graticule {
+            fill: none;
+            stroke: #475569;
+            stroke-width: 0.5px;
+            opacity: 0.4;
+        }
+
+        .loading {
+            position: absolute;
+            font-size: 1.2rem;
+            color: #cbd5e1;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.5;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            max-width: 300px;
+            z-index: 11;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="globe-container">
+        <div class="loading" id="loader">正在加载地理数据...</div>
+        <div class="tooltip" id="tooltip"></div>
+    </div>
+
+    <div class="instructions">
+        <h2 class="text-lg font-bold text-blue-400 mb-2">操作指南</h2>
+        <ul class="text-sm text-gray-300 space-y-1 list-disc pl-4">
+            <li><strong>拖拽</strong>：旋转地球</li>
+            <li><strong>点击</strong>：聚焦国家（支持点击台湾岛聚焦中国）</li>
+            <li><strong>双击背景</strong>：重置视图</li>
+        </ul>
+    </div>
+
+    <script>
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        const sensitivity = 75;
+
+        const svg = d3.select('#globe-container')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height);
+
+        let initialScale = Math.min(width, height) / 2.2;
+        const projection = d3.geoOrthographic()
+            .scale(initialScale)
+            .center([0, 0])
+            .rotate([-105, -35]) // 初始角度调整为面向亚洲
+            .translate([width / 2, height / 2]);
+
+        let path = d3.geoPath().projection(projection);
+
+        const globeGroup = svg.append('g');
+
+        globeGroup.append('path')
+            .datum({ type: 'Sphere' })
+            .attr('class', 'sphere')
+            .attr('d', path);
+
+        globeGroup.append('path')
+            .datum(d3.geoGraticule())
+            .attr('class', 'graticule')
+            .attr('d', path);
+
+        const countryGroup = globeGroup.append('g');
+        const tooltip = document.getElementById('tooltip');
+        const loader = document.getElementById('loader');
+
+        // 国家名称映射
+        const countryNames = {
+            "China": "中国",
+            "United States of America": "美国", "Russia": "俄罗斯",
+            "India": "印度", "Brazil": "巴西", "Canada": "加拿大",
+            "Australia": "澳大利亚", "Japan": "日本", "Germany": "德国",
+            "United Kingdom": "英国", "France": "法国", "Italy": "意大利",
+            "South Korea": "韩国", "Spain": "西班牙", "Vietnam": "越南",
+            "Thailand": "泰国", "Philippines": "菲律宾", "Malaysia": "马来西亚",
+            "Indonesia": "印度尼西亚", "Singapore": "新加坡", "Pakistan": "巴基斯坦",
+            "North Korea": "朝鲜", "Mongolia": "蒙古"
+        };
+
+        function getName(properties) {
+            const enName = properties.name;
+            // 如果是合并后的中国Feature，name属性会被我们手动设为"China"
+            return countryNames[enName] || enName;
+        }
+
+        // 加载世界地图数据
+        d3.json('https://unpkg.com/world-atlas@2.0.2/countries-110m.json').then(world => {
+            loader.style.display = 'none';
+
+            // --- 关键修改：合并中国大陆与台湾 ---
+            const geometries = world.objects.countries.geometries;
+
+            // 1. 找到中国大陆 (ID 156) 和 台湾 (ID 158) 的几何对象
+            // 注意：world-atlas 中 ID 是数字类型
+            const chinaGeo = geometries.filter(d => d.id === 156 || d.id === '156');
+            const taiwanGeo = geometries.filter(d => d.id === 158 || d.id === '158');
+            const targets = [...chinaGeo, ...taiwanGeo];
+
+            // 2. 将它们合并为一个 GeoJSON Geometry 对象
+            const mergedChinaGeometry = topojson.merge(world, targets);
+
+            // 3. 获取其他国家的几何对象 (排除 156 和 158)
+            const otherGeometries = geometries.filter(d => d.id !== 156 && d.id !== 158 && d.id !== '156' && d.id !== '158');
+
+            // 4. 将其他国家转换为 GeoJSON Features
+            const otherFeatures = topojson.feature(world, {
+                type: "GeometryCollection",
+                geometries: otherGeometries
+            }).features;
+
+            // 5. 手动构建合并后的中国 Feature
+            const chinaFeature = {
+                type: "Feature",
+                id: 156,
+                properties: { name: "China" }, // 统一命名为 China，后续映射为“中国”
+                geometry: mergedChinaGeometry
+            };
+
+            // 6. 组合所有 Features
+            const allFeatures = [...otherFeatures, chinaFeature];
+
+            // -----------------------------------
+
+            countryGroup.selectAll('path')
+                .data(allFeatures)
+                .enter().append('path')
+                .attr('class', 'country')
+                .attr('d', path)
+                // 添加数据属性方便调试
+                .attr('data-name', d => getName(d.properties))
+                .on('mouseover', function (event, d) {
+                    d3.select(this).style('fill', '#facc15');
+
+                    tooltip.style.opacity = 1;
+                    tooltip.innerText = getName(d.properties);
+                    tooltip.style.left = event.pageX + 'px';
+                    tooltip.style.top = event.pageY + 'px';
+                })
+                .on('mousemove', function (event) {
+                    if (tooltip.style.opacity === '1') {
+                        tooltip.style.left = event.pageX + 'px';
+                        tooltip.style.top = event.pageY + 'px';
+                    }
+                })
+                .on('mouseout', function (event, d) {
+                    if (!d3.select(this).classed('focused')) {
+                        d3.select(this).style('fill', null);
+                    }
+                    tooltip.style.opacity = 0;
+                })
+                .on('click', clicked);
+
+            svg.call(d3.drag()
+                .on('start', () => d3.interrupt(svg.node()))
+                .on('drag', (event) => {
+                    const rotate = projection.rotate();
+                    const k = sensitivity / projection.scale();
+                    projection.rotate([rotate[0] + event.dx * k, rotate[1] - event.dy * k]);
+                    svg.selectAll('path').attr('d', path);
+                }));
+
+            svg.on('dblclick', (event) => {
+                if (!d3.select(event.target).classed('country')) reset();
+            });
+
+        }).catch(err => {
+            console.error(err);
+            loader.innerText = "数据加载出错";
+            loader.style.color = "red";
+        });
+
+        function clicked(event, d) {
+            event.stopPropagation();
+            countryGroup.selectAll('.country').classed('focused', false).style('fill', null);
+            d3.select(this).classed('focused', true).style('fill', '#ef4444');
+
+            const centroid = d3.geoCentroid(d);
+            const rotate = d3.interpolate(projection.rotate(), [-centroid[0], -centroid[1]]);
+            const scale = d3.interpolate(projection.scale(), initialScale * 1.5);
+
+            d3.transition()
+                .duration(1200)
+                .tween("rotate", () => (t) => {
+                    projection.rotate(rotate(t));
+                    projection.scale(scale(t));
+                    svg.selectAll("path").attr("d", path);
+                });
+        }
+
+        function reset() {
+            countryGroup.selectAll('.country').classed('focused', false).style('fill', null);
+            const rotate = d3.interpolate(projection.rotate(), [-105, -35]); // 重置回亚洲视角
+            const scale = d3.interpolate(projection.scale(), initialScale);
+
+            d3.transition()
+                .duration(1000)
+                .tween("rotate", () => (t) => {
+                    projection.rotate(rotate(t));
+                    projection.scale(scale(t));
+                    svg.selectAll("path").attr("d", path);
+                });
+        }
+
+        window.addEventListener('resize', () => {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            svg.attr('width', w).attr('height', h);
+            projection.translate([w / 2, h / 2]);
+            initialScale = Math.min(w, h) / 2.2;
+            projection.scale(initialScale);
+            svg.selectAll("path").attr("d", path);
+        });
+    </script>
+</body>
+
+</html>
